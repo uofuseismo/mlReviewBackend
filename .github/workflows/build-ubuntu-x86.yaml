@@ -1,0 +1,140 @@
+name: AQMS Duty Review Backend Application
+run-name: Pipeline for branch ${{ github.ref_name }}
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '18 9 * * *'
+  # A manual trigger, for when the registry was down rather than the code
+  # being wrong.
+  workflow_dispatch:
+  #pull_request:
+  #  branches: [main]
+
+# One pipeline at a time.  Not cancel-in-progress: a run that is already
+# pushing should finish rather than leave a tag half-written.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROJECT_NAME: MLReviewBackend
+  CONTAINER_NAME: mlreviewbackend
+  QUAY_DIRECTORY: mlreviewbackend
+  BUILD_TYPE: Release
+  CXX: g++
+  CC: gcc
+
+jobs:
+  build:
+    runs-on: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-24.04]
+        arch: [x86]
+        BUILD_TARGET: [Release]
+    name: Build for ${{ matrix.distro }} ${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v6
+      # Trick next step - python checkout wants a requirements.txt file
+      - run: touch requirements.txt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+      - run: pip install conan
+
+      - name: Conan cache setup
+        uses: actions/cache@v5
+        id: cache-conan
+        env:
+          cache-name: cache-conan-modules
+        with:
+          path: ~/.conan2
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('./conanfile.py') }}
+
+      # Cache hit
+      - if: ${{ steps.cache-conan.outputs.cache-hit == 'true' }}
+        name: Cache hit - list the existing Conan modules
+        continue-on-error: true
+        run: |
+          ls ~/.conan2/
+          ls ~/.conan2/p
+
+      - name: Create default profile with Ninja generator
+        run: |
+          conan profile detect -f
+          echo "" >> ~/.conan2/profiles/default
+          echo "[conf]" >> ~/.conan2/profiles/default
+          echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/profiles/default
+
+      - name: Prepare build environment
+        uses: ./.github/actions/prepare-build-environment
+
+      - name: libmseed cache setup
+        uses: actions/cache@v5
+        id: cache-libmseed
+        env:
+          cache-name: cache-libmseed-libraries
+        with:
+          path: |
+             ${HOME}/third-party/include/libmseed.h
+             ${HOME}/third-party/lib/cmake/libmseed/*
+             ${HOME}/third-party/lib/libmseed.a
+          key: ${{ matrix.distro }}-${{ matrix.arch }}-build-${{ env.cache-name }}-${{ hashFiles('${HOME}/third-party') }}$
+
+      - name: libdatalink cache setup
+        uses: actions/cache@v5
+        id: cache-datalink
+        env:
+          cache-name: cache-datalink-libraries
+        with:
+          path: |
+             ${HOME}/third-party/include/libdali.h
+             ${HOME}/third-party/lib/libdali.a
+          key: ${{ matrix.distro }}-${{ matrix.arch }}-build-${{ env.cache-name }}-${{ hashFiles('${HOME}/third-party') }}$ 
+
+      - if: ${{ steps.cache-libmseed.outputs.cache-hit == 'true' }}
+        name: Show existing libmseed
+        continue-on-error: true
+        run: |
+          ls ${HOME}/third-party/include
+          ls ${HOME}/third-party/lib
+      - if: ${{ steps.cache-libmseed.outputs.cache-hit != 'true' }}
+        name: Build libmseed
+        run: |
+          mkdir -p ${HOME}/third-party
+          wget https://github.com/EarthScope/libmseed/archive/refs/tags/v3.5.4.tar.gz
+          tar -xf v3.5.4.tar.gz
+          rm v3.5.4.tar.gz
+          cd libmseed-3.5.4
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${HOME}/third-party
+          cmake --build build
+          cmake --install build
+          cd ../
+          rm -rf libmseed-3.5.4
+
+      - if: ${{ steps.cache-datalink.outputs.cache-hit == 'true' }}
+        name: Show existing libdatalink
+        continue-on-error: true
+        run: |
+          ls ${HOME}/third-party/include
+          ls ${HOME}/third-party/lib
+      - if: ${{ steps.cache-datalink.outputs.cache-hit != 'true' }}
+        name: Build libdali
+        run: |
+          mkdir -p ${HOME}/third-party
+          wget https://github.com/EarthScope/libdali/archive/refs/tags/v1.8.1.tar.gz
+          tar -xf v1.8.1.tar.gz
+          rm v1.8.1.tar.gz
+          cd libdali-1.8.1
+          CC=gcc make
+          mv libdali.h /usr/local/include
+          mv libdali.a /usr/local/lib
+          cd ../
+          rm -rf libdali-1.8.1
+
+
