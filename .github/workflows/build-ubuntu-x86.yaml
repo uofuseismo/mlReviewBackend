@@ -36,105 +36,32 @@ jobs:
         arch: [x86]
         BUILD_TARGET: [Release]
     name: Build for ${{ matrix.distro }} ${{ matrix.arch }}
+    permissions:
+      contents: read
+      packages: read
+    # All third-party dependencies are baked into this image; see
+    # scripts/Dockerfile.u24 and .github/workflows/base-image.yaml.
+    # (The env context is not available here, hence no ${{ env.* }}.)
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/mlreviewbackend-base:ubuntu24
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v6
-      # Trick next step - python checkout wants a requirements.txt file
-      - run: touch requirements.txt
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.14'
-          cache: 'pip'
-      - run: pip install conan
 
-      - name: Conan cache setup
-        uses: actions/cache@v5
-        id: cache-conan
-        env:
-          cache-name: cache-conan-modules
-        with:
-          path: ~/.conan2
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('./conanfile.py') }}
+      # The job runs as root but the workspace is owned by the runner user,
+      # so git (used by CMake for the version tag) refuses the repo otherwise.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
-      # Cache hit
-      - if: ${{ steps.cache-conan.outputs.cache-hit == 'true' }}
-        name: Cache hit - list the existing Conan modules
-        continue-on-error: true
-        run: |
-          ls ~/.conan2/
-          ls ~/.conan2/p
+      # The base image only has static mongocxx/libmseed, hence no shared libs.
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DBUILD_SHARED_LIBS=OFF
 
-      - name: Create default profile with Ninja generator
-        run: |
-          conan profile detect -f
-          echo "" >> ~/.conan2/profiles/default
-          echo "[conf]" >> ~/.conan2/profiles/default
-          echo "tools.cmake.cmaketoolchain:generator=Ninja" >> ~/.conan2/profiles/default
+      - name: Build
+        run: cmake --build build --parallel
 
-      - name: Prepare build environment
-        uses: ./.github/actions/prepare-build-environment
-
-      - name: libmseed cache setup
-        uses: actions/cache@v5
-        id: cache-libmseed
-        env:
-          cache-name: cache-libmseed-libraries
-        with:
-          path: |
-             ${HOME}/third-party/include/libmseed.h
-             ${HOME}/third-party/lib/cmake/libmseed/*
-             ${HOME}/third-party/lib/libmseed.a
-          key: ${{ matrix.distro }}-${{ matrix.arch }}-build-${{ env.cache-name }}-${{ hashFiles('${HOME}/third-party') }}$
-
-      - name: libdatalink cache setup
-        uses: actions/cache@v5
-        id: cache-datalink
-        env:
-          cache-name: cache-datalink-libraries
-        with:
-          path: |
-             ${HOME}/third-party/include/libdali.h
-             ${HOME}/third-party/lib/libdali.a
-          key: ${{ matrix.distro }}-${{ matrix.arch }}-build-${{ env.cache-name }}-${{ hashFiles('${HOME}/third-party') }}$ 
-
-      - if: ${{ steps.cache-libmseed.outputs.cache-hit == 'true' }}
-        name: Show existing libmseed
-        continue-on-error: true
-        run: |
-          ls ${HOME}/third-party/include
-          ls ${HOME}/third-party/lib
-      - if: ${{ steps.cache-libmseed.outputs.cache-hit != 'true' }}
-        name: Build libmseed
-        run: |
-          mkdir -p ${HOME}/third-party
-          wget https://github.com/EarthScope/libmseed/archive/refs/tags/v3.5.4.tar.gz
-          tar -xf v3.5.4.tar.gz
-          rm v3.5.4.tar.gz
-          cd libmseed-3.5.4
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${HOME}/third-party
-          cmake --build build
-          cmake --install build
-          cd ../
-          rm -rf libmseed-3.5.4
-
-      - if: ${{ steps.cache-datalink.outputs.cache-hit == 'true' }}
-        name: Show existing libdatalink
-        continue-on-error: true
-        run: |
-          ls ${HOME}/third-party/include
-          ls ${HOME}/third-party/lib
-      - if: ${{ steps.cache-datalink.outputs.cache-hit != 'true' }}
-        name: Build libdali
-        run: |
-          mkdir -p ${HOME}/third-party
-          wget https://github.com/EarthScope/libdali/archive/refs/tags/v1.8.1.tar.gz
-          tar -xf v1.8.1.tar.gz
-          rm v1.8.1.tar.gz
-          cd libdali-1.8.1
-          CC=gcc make
-          mv libdali.h /usr/local/include
-          mv libdali.a /usr/local/lib
-          cd ../
-          rm -rf libdali-1.8.1
-
-
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
