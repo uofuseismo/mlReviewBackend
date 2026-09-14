@@ -1,0 +1,4 @@
+attic
+setupDebug.sh
+build
+CMakeUserPresets.json
