@@ -106,4 +106,58 @@ jobs:
       - name: Run unit tests for release
         run: ctest --test-dir build --output-on-failure
 
+  package:
+    needs: test
+    runs-on: ${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-24.04]
+        arch: [x86]
+        BUILD_TARGET: [Release]
+    name: Package for ${{ matrix.distro }} ${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Prepare package environment
+        uses: ./.github/actions/prepare-package-environment
+
+      - name: Download build directory
+        uses: ./.github/actions/download-build-directory
+
+      - name: Package tgz
+        working-directory: ${{github.workspace}}
+        run: |
+          mv build/version.hpp include/mlReview/
+          cd build/
+          mkdir -p artifacts
+          cpack -B artifacts TGZ
+
+      - name: Build and push image
+        env: # Or as an environment variable
+          QUAY_ROBOT_PASSWORD: ${{ secrets.QUAY_ROBOT_PASSWORD }}
+          QUAY_ROBOT_USER: ${{ secrets.QUAY_ROBOT_USER }}
+        working-directory: ${{github.workspace}}
+        run: |
+          echo $QUAY_ROBOT_PASSWORD | buildah login -u $QUAY_ROBOT_USER --password-stdin quay.io
+          cd build/Release
+          cp artifacts/*tar.gz ./
+          version=$(ls *tar.gz | sed 's/MLReviewBackend-//g' | sed 's/-Linux.tar.gz//g')
+          echo "Will build container version ${version}"
+          buildah bud -t ${CONTAINER_NAME}:${version} -t ${CONTAINER_NAME}:latest -f ./Dockerfile.u26
+          dated="${version}-$(date -u +%Y%m%d)"
+          buildah tag ${CONTAINER_NAME}:${version} quay.io/uuss/${QUAY_DIRECTORY}:${version}
+          buildah tag ${CONTAINER_NAME}:${version} quay.io/uuss/${QUAY_DIRECTORY}:${dated}
+          push_tag() {
+            for i in 1 2 3; do
+              buildah push "$1" && return 0
+              echo "Push of $1 failed (attempt $i); retrying"
+              sleep 15
+            done
+            echo "ERROR: could not push $1 after 3 attempts"
+            return 1
+          }
+          push_tag quay.io/uuss/${QUAY_DIRECTORY}:${version}
+          push_tag quay.io/uuss/${QUAY_DIRECTORY}:${dated}
 
