@@ -63,6 +63,7 @@ jobs:
       - name: Build
         run: |
            cmake --build build --parallel
+           ldd build/mlReviewBackend
            cp include/mlReview/version.hpp build
 
       - name: Test install
@@ -81,6 +82,17 @@ jobs:
         distro: [ubuntu-24.04]
         arch: [x86]
     name: Test on ${{ matrix.distro }} ${{ matrix.arch }}
+    permissions:
+      contents: read
+      packages: read
+    # Same image as the build job: the build directory records absolute
+    # paths from inside the container (/__w/...), so ctest only finds the
+    # test executables if it runs in the container too.
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/mlreviewbackend-base:ubuntu24
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v6
@@ -92,11 +104,6 @@ jobs:
         uses: ./.github/actions/download-build-directory
 
       - name: Run unit tests for release
-        working-directory: ${{github.workspace}}
-        run: |
-          #mv build/version.hpp include/aqmsDutyReviewBackend/
-          #mv build/CMakeUserPresets.json ./
-          #ctest --test-dir build --verbose
-          echo "No tests"
+        run: ctest --test-dir build --output-on-failure
 
 

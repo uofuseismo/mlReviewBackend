@@ -5,7 +5,7 @@ runs:
   steps:
     - name: Prepare environment
       run: |
-        mkdir -p ${{github.workspace}}/build
+        mkdir -p "${GITHUB_WORKSPACE}/build"
         sudo apt-get update -y
         sudo apt-get install -y --no-install-recommends \
            tar \
