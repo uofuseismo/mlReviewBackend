@@ -12,9 +12,16 @@ ARG RUN_GID=10001
 
 COPY @PROJECT_NAME@-@PROJECT_VERSION@-Linux.tar.gz .
 LABEL version="@PROJECT_VERSION@"
-RUN apt-get update &&\ 
-    apt-get upgrade -y &&\ 
-    apt-get -y install --no-install-recommends bash ca-certificates &&\ 
+# The binary's only non-libc shared dependencies (readelf -d NEEDED) are
+# libcurl and libpq; everything else is linked statically.  apt pulls in
+# their own dependencies - OpenSSL, LDAP, zstd, krb5, nghttp2, etc.
+RUN apt-get update &&\
+    apt-get upgrade -y &&\
+    apt-get -y install --no-install-recommends \
+            bash \
+            ca-certificates \
+            libcurl4t64 \
+            libpq5 &&\
     groupadd --system --gid ${RUN_GID} mlreview &&\ 
     useradd --system --uid ${RUN_UID} --gid ${RUN_GID} \
             --no-create-home --home-dir /nonexistent \
