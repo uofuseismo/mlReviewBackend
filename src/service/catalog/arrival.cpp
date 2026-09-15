@@ -107,6 +107,21 @@ bool Arrival::haveStation() const noexcept
 }
 
 /// Channel
+void Arrival::setChannels(const std::string &verticalChannel)
+{
+    if (::isEmpty(verticalChannel))
+    {
+        throw std::invalid_argument("Vertical channel is empty");
+    }
+    if (verticalChannel.size() != 3)
+    {
+        throw std::invalid_argument("Vertical channel size not 3");
+    }
+    pImpl->mVerticalChannel = verticalChannel;
+    pImpl->mNorthChannel.clear();
+    pImpl->mEastChannel.clear();
+}
+
 void Arrival::setChannels(const std::string &verticalChannel,
                           const std::string &northChannel,
                           const std::string &eastChannel)

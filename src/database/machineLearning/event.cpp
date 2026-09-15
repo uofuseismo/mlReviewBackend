@@ -104,7 +104,7 @@ Event::MonitoringRegion Event::getMonitoringRegion() const noexcept
 /// Authority
 void Event::setAuthority(const std::string &authority)
 {
-    if (authority.empty()){throw std::runtime_error("Authority is empty");}
+    if (authority.empty()){throw std::invalid_argument("Authority is empty");}
     pImpl->mAuthority = authority;
 }
 

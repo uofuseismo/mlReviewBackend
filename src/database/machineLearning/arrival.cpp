@@ -70,6 +70,24 @@ void Arrival::clear() noexcept
 /// Destructor
 Arrival::~Arrival() = default;
 
+/// Identifier
+void Arrival::setIdentifier(const int64_t identifier) noexcept
+{
+    pImpl->mIdentifier = identifier;
+    pImpl->mHaveIdentifier = true;
+}
+
+int64_t Arrival::getIdentifier() const
+{
+    if (!haveIdentifier()){throw std::runtime_error("Identifier not set");}
+    return pImpl->mIdentifier;
+}
+
+bool Arrival::haveIdentifier() const noexcept
+{
+    return pImpl->mHaveIdentifier;
+}
+
 /// Network
 void Arrival::setNetwork(const std::string &network)
 {

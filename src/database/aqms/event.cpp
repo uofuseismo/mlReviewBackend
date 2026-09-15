@@ -8,7 +8,7 @@ namespace
 std::string convertString(const std::string &input)
 {
     auto result = input;
-    std::remove_if(result.begin(), result.end(), ::isspace);
+    result.erase(std::remove_if(result.begin(), result.end(), ::isspace), result.end());
     std::transform(result.begin(), result.end(), result.begin(), ::toupper);
     return result;
 }

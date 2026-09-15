@@ -8,7 +8,7 @@ namespace
 std::string convertString(const std::string &input)
 {
     auto result = input;
-    std::remove_if(result.begin(), result.end(), ::isspace);
+    result.erase(std::remove_if(result.begin(), result.end(), ::isspace), result.end());
     std::transform(result.begin(), result.end(), result.begin(), ::toupper);
     return result;
 }
@@ -213,7 +213,7 @@ std::optional<double> AssocArO::getSourceToReceiverAzimuth() const noexcept
 void AssocArO::setPhase(const std::string &phaseIn)
 {
     auto phase = phaseIn;
-    std::remove_if(phase.begin(), phase.end(), ::isspace);
+    phase.erase(std::remove_if(phase.begin(), phase.end(), ::isspace), phase.end());
     if (phase.empty()){throw std::invalid_argument("Phase cannot be empty");}
     if (phase.size() > 8)
     {   

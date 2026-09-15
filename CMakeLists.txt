@@ -319,27 +319,42 @@ endif()
 if (PROJECT_IS_TOP_LEVEL AND ${BUILD_TESTS})
    message("Will build unit tests")
 
-   #set(TEST_SRC
-   #    testing/database/aqms/arrival.cpp)
-   #add_executable(unitTests ${TEST_SRC})
-   #target_compile_definitions(unitTests
-   #                           PRIVATE TESTING_DATA_DIR="${CMAKE_SOURCE_DIR}/testing/data")
-   #set_target_properties(unitTests PROPERTIES
-   #                      CXX_STANDARD 23
-   #                      CXX_STANDARD_REQUIRED YES
-   #                      CXX_EXTENSIONS NO)
-   #target_link_libraries(unitTests
-   #                      PRIVATE
-   #                         mlReview
-   #                         spdlog::spdlog_header_only
-   #                         Threads::Threads
-   #                         Catch2::Catch2 Catch2::Catch2WithMain)
-   #target_include_directories(unitTests
-   #                           PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-   #                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
-   #                           )
-   #add_test(NAME unitTests
-   #         COMMAND $<TARGET_FILE:unitTests>)
+   set(TEST_SRC
+       testing/database/aqms/arrival.cpp
+       testing/database/aqms/assocaro.cpp
+       testing/database/aqms/credit.cpp
+       testing/database/aqms/event.cpp
+       testing/database/aqms/origin.cpp
+       testing/database/machineLearning/arrival.cpp
+       testing/database/machineLearning/event.cpp
+       testing/database/machineLearning/origin.cpp
+       testing/service/catalog/arrival.cpp
+       testing/service/catalog/event.cpp
+       testing/service/catalog/origin.cpp
+       testing/service/stations/station.cpp
+       testing/waveServer/request.cpp
+       testing/waveServer/segment.cpp
+       testing/waveServer/waveform.cpp)
+   add_executable(unitTests ${TEST_SRC})
+   target_compile_definitions(unitTests
+                              PRIVATE TESTING_DATA_DIR="${CMAKE_SOURCE_DIR}/testing/data")
+   set_target_properties(unitTests PROPERTIES
+                         CXX_STANDARD 23
+                         CXX_STANDARD_REQUIRED YES
+                         CXX_EXTENSIONS NO)
+   target_link_libraries(unitTests
+                         PRIVATE
+                            mlReview
+                            nlohmann_json::nlohmann_json
+                            spdlog::spdlog_header_only
+                            Threads::Threads
+                            Catch2::Catch2 Catch2::Catch2WithMain)
+   target_include_directories(unitTests
+                              PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+                              PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+                              )
+   add_test(NAME unitTests
+            COMMAND $<TARGET_FILE:unitTests>)
 endif()
 
 ##########################################################################################
