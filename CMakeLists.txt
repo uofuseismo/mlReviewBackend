@@ -5,6 +5,7 @@ enable_testing()
 option(ENABLE_SSL "Enable SSL connections" OFF)
 option(WITH_CORS "Compile with CORS *" OFF)
 option(UUSS_SRC "Enable UUSS-specific source" ON)
+option(BUILD_TESTS "Compile unit tests" ON)
 option(COMPILE_DATABASE_UTILITIES "Utilites for interacting with the datbase" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
@@ -38,7 +39,9 @@ find_package(CURL REQUIRED)
 find_package(libmseed REQUIRED)
 find_package(uAuthenticator REQUIRED)
 find_package(DataLinkClient)
-find_package(Catch2 3)
+if (${BUILD_TESTS})
+   find_package(Catch2 3 REQUIRED)
+endif()
 find_package(SFF)
 find_package(ZLIB)
 if (${ENABLE_SSL})
@@ -68,6 +71,44 @@ endif()
 configure_file(${CMAKE_SOURCE_DIR}/src/version.hpp.in
                ${CMAKE_SOURCE_DIR}/include/mlReview/version.hpp)
 
+set(HEADER_FILES
+    include/mlReview/database/aqms/arrival.hpp
+    include/mlReview/database/aqms/assocaro.hpp
+    include/mlReview/database/aqms/credit.hpp
+    include/mlReview/database/aqms/event.hpp
+    include/mlReview/database/aqms/origin.hpp
+    include/mlReview/database/connection/mongodb.hpp
+    include/mlReview/database/connection/postgresql.hpp
+    include/mlReview/database/machineLearning/arrival.hpp
+    include/mlReview/database/machineLearning/event.hpp
+    include/mlReview/database/machineLearning/origin.hpp
+    include/mlReview/messages/error.hpp
+    include/mlReview/messages/message.hpp
+    include/mlReview/service/actions/acceptEventToAWS.hpp
+    include/mlReview/service/actions/deleteEventFromAWS.hpp
+    include/mlReview/service/catalog/arrival.hpp
+    include/mlReview/service/catalog/event.hpp
+    include/mlReview/service/catalog/magnitude.hpp
+    include/mlReview/service/catalog/origin.hpp
+    include/mlReview/service/catalog/resource.hpp
+    include/mlReview/service/catalog/response.hpp
+    include/mlReview/service/exceptions.hpp
+    include/mlReview/service/handler.hpp
+    include/mlReview/service/resource.hpp
+    include/mlReview/service/stations/resource.hpp
+    include/mlReview/service/stations/response.hpp
+    include/mlReview/service/stations/station.hpp
+    include/mlReview/service/waveforms/resource.hpp
+    include/mlReview/service/waveforms/response.hpp
+    include/mlReview/version.hpp
+    include/mlReview/waveServer/client.hpp
+    include/mlReview/waveServer/dataLink.hpp
+    include/mlReview/waveServer/fdsn.hpp
+    include/mlReview/waveServer/multiClient.hpp
+    include/mlReview/waveServer/request.hpp
+    include/mlReview/waveServer/segment.hpp
+    include/mlReview/waveServer/waveform.hpp
+    include/mlReview/webServer/listener.hpp)
 
 set(LIBRARY_SRC
     src/version.cpp
@@ -93,7 +134,8 @@ set(LIBRARY_SRC
     src/waveServer/waveform.cpp)
 if (${DataLinkClient_FOUND})
    message("Found DataLinkClient library")
-   set(LIBRARY_SRC ${LIBRARY_SRC} src/waveServer/dataLink.cpp)
+   set(HEADER_FILES ${HEADER_FILES} include/mlReview/waveServer/dataLink.hpp)
+   set(LIBRARY_SRC  ${LIBRARY_SRC}  src/waveServer/dataLink.cpp)
 endif()
 if (${BUILD_SHARED_LIBS})
    add_library(mlReview SHARED ${LIBRARY_SRC})
@@ -137,6 +179,15 @@ if (USE_MS_VERSION_315)
    message("Using ms_sid2nslc_n")
    target_compile_definitions(mlReview PRIVATE USE_MS_VERSION_315)
 endif()
+target_sources(mlReview
+               PUBLIC FILE_SET
+                      HEADERS
+                      BASE_DIRS
+                         include
+                      FILES
+                         ${HEADER_FILES}
+               )   
+
 
 
 add_executable(mlReviewBackend
@@ -262,6 +313,36 @@ endif()
 #endif()
 
 ##########################################################################################
+#                                        Testing                                         #
+##########################################################################################
+
+if (PROJECT_IS_TOP_LEVEL AND ${BUILD_TESTS})
+   message("Will build unit tests")
+
+   #set(TEST_SRC
+   #    testing/database/aqms/arrival.cpp)
+   #add_executable(unitTests ${TEST_SRC})
+   #target_compile_definitions(unitTests
+   #                           PRIVATE TESTING_DATA_DIR="${CMAKE_SOURCE_DIR}/testing/data")
+   #set_target_properties(unitTests PROPERTIES
+   #                      CXX_STANDARD 23
+   #                      CXX_STANDARD_REQUIRED YES
+   #                      CXX_EXTENSIONS NO)
+   #target_link_libraries(unitTests
+   #                      PRIVATE
+   #                         mlReview
+   #                         spdlog::spdlog_header_only
+   #                         Threads::Threads
+   #                         Catch2::Catch2 Catch2::Catch2WithMain)
+   #target_include_directories(unitTests
+   #                           PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+   #                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+   #                           )
+   #add_test(NAME unitTests
+   #         COMMAND $<TARGET_FILE:unitTests>)
+endif()
+
+##########################################################################################
 #                                        Containers                                      #
 ##########################################################################################
 include(CPackComponent)
@@ -273,12 +354,12 @@ if (${BUILD_CONTAINER})
                      COMMENT "Creating container file for ${PROJECT_NAME}"
                      COMMAND ${CMAKE_CPACK_COMMAND} -G TGZ 
                      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} VERBATIM)
-   add_dependencies(${PROJECT_NAME}-u24 ${binaries} libaqmsDutyReviewBackend)
+   add_dependencies(${PROJECT_NAME}-u24 ${binaries} mlReview)
    find_program(buildah_EXECUTABLE buildah)
    if (buildah_EXECUTABLE)
       add_custom_target(buildah
                         COMMENT "Preparing the container with buildah"
-                        COMMAND ${buildah_EXECUTABLE} bud -t aqmsdutyreviewbackend:${PROJECT_VERSION} -t aqmsdutyreviewbackend:latest -f ./Dockerfile.u24
+                        COMMAND ${buildah_EXECUTABLE} bud -t mlreviewbackend:${PROJECT_VERSION} -t mlreviewbackend:latest -f ./Dockerfile.u24
                         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} VERBATIM)
       add_dependencies(buildah ${PROJECT_NAME}-u24)
    endif()
@@ -291,6 +372,8 @@ endif()
 ##########################################################################################
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+configure_file(${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in
+               ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake @ONLY)
 #configure_package_config_file(
 #    cmake/${PROJECT_NAME}.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
 #    INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
@@ -299,18 +382,20 @@ include(CMakePackageConfigHelpers)
 #    VERSION "${version}"
 #    COMPATIBILITY AnyNewerVersion
 #)
-install(TARGETS mlReviewBackend
-        EXPORT ${PROJECT_NAME}-targets
+install(TARGETS mlReview
+        EXPORT ${PROJECT_NAME}Targets
+        FILE_SET HEADERS
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        COMPONENT Runtime)
-#install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/mlReviewBackend
-#        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-export(EXPORT ${PROJECT_NAME}-targets
+        COMPONENT libraries)
+install(TARGETS mlReviewBackend
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT applications)
+export(EXPORT ${PROJECT_NAME}Targets
        FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
-install(EXPORT ${PROJECT_NAME}-targets
+install(EXPORT ${PROJECT_NAME}Targets
         FILE ${PROJECT_NAME}Targets.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
 #install(FILES

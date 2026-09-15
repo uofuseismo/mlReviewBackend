@@ -58,13 +58,16 @@ jobs:
 
       # The base image only has static mongocxx/libmseed, hence no shared libs.
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DBUILD_SHARED_LIBS=OFF
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build --parallel
+        run: |
+           cmake --build build --parallel
+           cp include/mlReview/version.hpp build
 
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+      - name: Test install
+        run: 
+           cmake --install build
 
       - name: Upload build directory
         uses: ./.github/actions/upload-build-directory
