@@ -63,7 +63,6 @@ jobs:
       - name: Build
         run: |
            cmake --build build --parallel
-           ldd build/mlReviewBackend
            cp include/mlReview/version.hpp build
 
       - name: Test install

@@ -4,7 +4,7 @@
 #define MLReviewBackend_MAJOR  @MLReviewBackend_VERSION_MAJOR@
 #define MLReviewBackend_MINOR  @MLReviewBackend_VERSION_MINOR@
 #define MLReviewBackend_PATCH  @MLReviewBackend_VERSION_PATCH@
-#define MLReviewBackend_GITTAG "@aqmsDutyReviewBackend_GITTAG@"
+#define MLReviewBackend_GITTAG "@mlReviewBackend_GITTAG@"
 #define MLReviewBackend_VERSION "@PROJECT_VERSION@"
 namespace MLReview
 {
