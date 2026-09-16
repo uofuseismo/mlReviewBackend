@@ -14,6 +14,7 @@
 #include "mlReview/service/handler.hpp"
 #include "mlReview/service/actions/acceptEventToAWS.hpp"
 #include "mlReview/service/actions/deleteEventFromAWS.hpp"
+#include "mlReview/service/appSettings/getStadiaMapsAPIKey.hpp"
 #include "mlReview/service/catalog/resource.hpp"
 #include "mlReview/service/stations/resource.hpp"
 #include "mlReview/service/waveforms/resource.hpp"
@@ -319,6 +320,9 @@ int main(int argc, char *argv[])
     auto waveformsResource
         = std::make_unique<MLReview::Service::Waveforms::Resource>
           (mongoDatabaseConnection);
+    auto stadiaKeyResource
+        = std::make_unique<MLReview::Service::AppSettings::GetStadiaMapsAPIKey>
+          (programOptions.stadiaMapsAPIKey);
 
     auto handler = std::make_shared<MLReview::Service::Handler> ();
     handler->insert(std::move(catalogResource));
@@ -326,6 +330,7 @@ int main(int argc, char *argv[])
     handler->insert(std::move(waveformsResource));
     handler->insert(std::move(acceptEventToAWS));
     handler->insert(std::move(deleteEventFromAWS));
+    handler->insert(std::move(stadiaKeyResource));
 
     //const auto address = boost::asio::ip::make_address("127.0.0.1");
     //const auto port = static_cast<unsigned short> (8090);

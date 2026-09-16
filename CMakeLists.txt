@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(MLReviewBackend VERSION 0.1.1 LANGUAGES CXX)
+project(MLReviewBackend VERSION 0.1.2 LANGUAGES CXX)
 enable_testing()
 
 option(ENABLE_SSL "Enable SSL connections" OFF)
@@ -86,6 +86,7 @@ set(HEADER_FILES
     include/mlReview/messages/message.hpp
     include/mlReview/service/actions/acceptEventToAWS.hpp
     include/mlReview/service/actions/deleteEventFromAWS.hpp
+    include/mlReview/service/appSettings/getStadiaMapsAPIKey.hpp
     include/mlReview/service/catalog/arrival.hpp
     include/mlReview/service/catalog/event.hpp
     include/mlReview/service/catalog/magnitude.hpp
@@ -197,6 +198,7 @@ add_executable(mlReviewBackend
                src/service/resource.cpp
                src/service/actions/acceptEventToAWS.cpp
                src/service/actions/deleteEventFromAWS.cpp
+               src/service/appSettings/getStadiaMapsAPIKey.cpp
                src/service/catalog/resource.cpp
                src/service/catalog/response.cpp
                src/service/stations/resource.cpp
