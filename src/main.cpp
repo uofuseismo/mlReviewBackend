@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -17,6 +18,8 @@
 #include "mlReview/service/stations/resource.hpp"
 #include "mlReview/service/waveforms/resource.hpp"
 #include "mlReview/webServer/listener.hpp"
+#include "mlReview/version.hpp"
+#include "secretFile.hpp"
 
 namespace
 {
@@ -31,137 +34,282 @@ void getWaveform(MLReview::Database::Connection::PostgreSQL &connection)
 }
 */
 
+#define APPLICATION_NAME "mlReviewBackend"
+
 struct ProgramOptions
 {
-    boost::asio::ip::address address{boost::asio::ip::make_address("0.0.0.0")};
+    std::string applicationName{APPLICATION_NAME};
+    int verbosity{3};
+
+    boost::asio::ip::address address{boost::asio::ip::make_address("127.0.0.1")};
     std::filesystem::path documentRoot{"./"}; 
     int nThreads{1};
-    unsigned short port{80};
+    unsigned short port{8000};
     bool helpOnly{false};
+
+    std::string ldapHost;
+    uint16_t ldapPort{636};
+    std::string ldapOrganizationalUnit;
+    std::string ldapDomainComponent;
+
+    std::string aqmsReadOnlyUser;
+    std::string aqmsReadOnlyPassword;
+    std::string aqmsDatabaseName;
+    std::string aqmsHost;
+    uint16_t aqmsPort{5432};
+
+    std::string mongodbReadWriteUser;
+    std::string mongodbReadWritePassword;
+    std::string mongodbDatabaseName;
+    std::string mongodbHost;
+    uint16_t mongodbPort{27017};
+
+    std::string mlReviewAPIURL;
+    std::string mlReviewAPIKey;
+
+    std::string stadiaMapsAPIKey;
+
+    static ProgramOptions parseIniFile(const std::filesystem::path &iniFile)
+    {
+        if (!std::filesystem::exists(iniFile))
+        {
+            throw std::invalid_argument(std::string{iniFile}
+                                      + " does not exist");
+        }
+        ProgramOptions options;
+        // Parse the initialization file
+        boost::property_tree::ptree propertyTree;
+        boost::property_tree::ini_parser::read_ini(iniFile, propertyTree);
+
+        options.applicationName
+            = propertyTree.get<std::string> ("General.applicationName",
+                                             options.applicationName);
+        if (options.applicationName.empty())
+        {
+            options.applicationName = APPLICATION_NAME;
+        }
+        options.verbosity
+            = propertyTree.get<int> ("General.verbosity", options.verbosity);
+
+        auto stadiaKey
+            = ::resolveSecret(
+                 propertyTree,
+                 "General.stadiaMapsAPIKey",
+                 "General.stadiaMapsAPIKeyFile");
+        if (stadiaKey){options.stadiaMapsAPIKey = *stadiaKey;}
+
+
+        auto stringAddress
+            = propertyTree.get<std::string> ("Beast.address", "127.0.0.1");
+        if (stringAddress.empty())
+        {
+            throw std::invalid_argument("Beast address not set");
+        }
+        options.address = boost::asio::ip::make_address(stringAddress);
+
+        options.port = propertyTree.get<uint16_t> ("Beast.port", options.port);
+        if (options.port == 0)
+        {
+            throw std::invalid_argument("Port cannot be 0");
+        }
+       
+        options.nThreads
+            = propertyTree.get<int> ("Beast.numberOfThreads", options.nThreads);
+        if (options.nThreads < 1)
+        {
+            throw std::invalid_argument("Number of threads must be positive");
+        } 
+
+        // A setting that must be given, either inline or in a file.  An
+        // empty value is the same as an absent one: an empty password is
+        // never what was meant, and it would otherwise surface as a
+        // connection failure rather than a configuration error.
+        auto requireSecret
+            = [&propertyTree](const std::string &inlineKey,
+                              const std::string &fileKey) -> std::string
+        {
+            auto value = ::resolveSecret(propertyTree, inlineKey, fileKey);
+            if (!value || value->empty())
+            {
+                throw std::invalid_argument("Set " + inlineKey + " or "
+                                          + fileKey);
+            }
+            return *value;
+        };
+        // A setting that must be given inline - these are not secrets.
+        auto requireString
+            = [&propertyTree](const std::string &key) -> std::string
+        {
+            auto value = propertyTree.get_optional<std::string> (key);
+            if (!value || value->empty())
+            {
+                throw std::invalid_argument("Set " + key);
+            }
+            return *value;
+        };
+        // A port must be non-zero; 0 asks the OS to pick one, which for a
+        // service we connect to is never right.
+        auto getPort
+            = [&propertyTree](const std::string &key,
+                              const uint16_t defaultPort) -> uint16_t
+        {
+            auto port = propertyTree.get<uint16_t> (key, defaultPort);
+            if (port == 0){throw std::invalid_argument(key + " cannot be 0");}
+            return port;
+        };
+
+        options.aqmsReadOnlyUser
+            = requireSecret("AQMS.readOnlyUser", "AQMS.readOnlyUserFile");
+        options.aqmsReadOnlyPassword
+            = requireSecret("AQMS.readOnlyPassword",
+                            "AQMS.readOnlyPasswordFile");
+        options.aqmsDatabaseName
+            = requireSecret("AQMS.databaseName", "AQMS.databaseNameFile");
+        options.aqmsHost
+            = requireSecret("AQMS.host", "AQMS.hostFile");
+        options.aqmsPort = getPort("AQMS.port", options.aqmsPort);
+
+        options.mongodbReadWriteUser
+            = requireSecret("MongoDB.readWriteUser",
+                            "MongoDB.readWriteUserFile");
+        options.mongodbReadWritePassword
+            = requireSecret("MongoDB.readWritePassword",
+                            "MongoDB.readWritePasswordFile");
+        options.mongodbDatabaseName
+            = requireSecret("MongoDB.databaseName",
+                            "MongoDB.databaseNameFile");
+        options.mongodbHost
+            = requireSecret("MongoDB.host", "MongoDB.hostFile");
+        options.mongodbPort = getPort("MongoDB.port", options.mongodbPort);
+
+        options.mlReviewAPIURL
+            = requireSecret("AWS.url", "AWS.urlFile");
+        options.mlReviewAPIKey
+            = requireSecret("AWS.key", "AWS.keyFile");
+
+        options.ldapHost = requireSecret("LDAP.host", "LDAP.hostFile");
+        options.ldapPort = getPort("LDAP.port", options.ldapPort);
+        options.ldapOrganizationalUnit
+            = requireString("LDAP.organizationalUnit");
+        options.ldapDomainComponent
+            = requireString("LDAP.domainComponent");
+
+        return options;
+    }
 };
 
 /// @brief Parses the command line options.
-[[nodiscard]] ::ProgramOptions parseCommandLineOptions(int argc, char *argv[])
+[[nodiscard]] 
+std::pair<std::string, bool> parseCommandLineOptions(int argc, char *argv[])
 {
-    ::ProgramOptions result;
+    std::string iniFile;
     boost::program_options::options_description desc(
 R"""(
 The mlReviewBackend is the API for the mlReview frontend.
 Example usage:
-    mlReviewBackend --address=127.0.0.1 --port=8080 --document_root=./ --n_threads=1
+    mlReviewBackend --ini=/path/to/config.ini
 Allowed options)""");
     desc.add_options()
-        ("help",    "Produces this help message")
-        ("address", boost::program_options::value<std::string> ()->default_value("0.0.0.0"),
-                    "The address at which to bind")
-        ("port",    boost::program_options::value<uint16_t> ()->default_value(80),
-                    "The port on which to bind")
-        ("document_root", boost::program_options::value<std::string> ()->default_value("./"),
-                    "The document root in case files are served")
-        ("n_threads", boost::program_options::value<int> ()->default_value(1),
-                     "The number of threads");
-    boost::program_options::variables_map vm;
+        ("help", "Produces this help message")
+        ("ini",  boost::program_options::value<std::string> (), 
+                 "The initialization file for this executable");
+    boost::program_options::variables_map vm; 
     boost::program_options::store(
         boost::program_options::parse_command_line(argc, argv, desc), vm); 
     boost::program_options::notify(vm);
     if (vm.count("help"))
-    {
+    {    
         std::cout << desc << std::endl;
-        result.helpOnly = true;
-        return result;
-    }
-    if (vm.count("address"))
-    {
-        auto address = vm["address"].as<std::string>();
-        if (address.empty()){throw std::invalid_argument("Address is empty");}
-        result.address = boost::asio::ip::make_address(address); 
-    }
-    if (vm.count("port"))
-    {
-        auto port = vm["port"].as<uint16_t> ();
-        result.port = port;
-    }
-    if (vm.count("document_root"))
-    {
-        auto documentRoot = vm["document_root"].as<std::string>();
-        if (documentRoot.empty()){documentRoot = "./";}
-        if (!std::filesystem::exists(documentRoot))
+        return {iniFile, true};
+    }   
+    if (vm.count("ini"))
+    {    
+        iniFile = vm["ini"].as<std::string>();
+        if (!std::filesystem::exists(iniFile))
         {
-            throw std::runtime_error("Document root: " + documentRoot
+            throw std::runtime_error("Initialization file: " + iniFile
                                    + " does not exist");
         }
-        result.documentRoot = documentRoot;
-    }
-    if (vm.count("n_threads"))
-    {
-        auto nThreads = vm["n_threads"].as<int> ();
-        if (nThreads < 1){throw std::invalid_argument("Number of threads must be positive");}
-        result.nThreads = nThreads;
-    }
-    return result;
+    }    
+    return {iniFile, false};
 }
 
 }
 
 int main(int argc, char *argv[])
 { 
-    ::ProgramOptions programOptions;
+    spdlog::info("Launching mlReviewBackend version "
+               + MLReview::Version::getVersionWithTag());
+
+    std::filesystem::path iniFile;
     try
-    {
-        programOptions = parseCommandLineOptions(argc, argv);
-        if (programOptions.helpOnly){return EXIT_SUCCESS;}
+    {   
+        auto [iniFileName, isHelp] = ::parseCommandLineOptions(argc, argv);
+        if (isHelp){return EXIT_SUCCESS;}
+        if (iniFileName.empty())
+        {   
+            throw std::runtime_error("No initialization file specified");
+        }   
+        iniFile = iniFileName;
     }
     catch (const std::exception &e)
     {
-        spdlog::error(e.what());
+        spdlog::critical(e.what());
         return EXIT_FAILURE;
     }
     
+    ::ProgramOptions programOptions;
+    try
+    {
+        programOptions = ::ProgramOptions::parseIniFile(iniFile);
+    }
+    catch (const std::exception &e)
+    {
+        spdlog::critical(e.what());
+        return EXIT_FAILURE;
+    }
+
     // Make an authenticator
-//std::cout << std::getenv("LDAP_HOST") << std::endl;
     std::shared_ptr<UAuthenticator::IAuthenticator> authenticator
         = std::make_shared<UAuthenticator::LDAP> (
-             std::getenv("LDAP_HOST"),
-             std::stoi(std::getenv("LDAP_PORT")),
-             std::getenv("LDAP_ORGANIZATION_UNIT"),
-             std::getenv("LDAP_DOMAIN_COMPONENT"),
+             programOptions.ldapHost, //std::getenv("LDAP_HOST"),
+             programOptions.ldapPort, //std::stoi(std::getenv("LDAP_PORT")),
+             programOptions.ldapOrganizationalUnit, //std::getenv("LDAP_ORGANIZATION_UNIT"),
+             programOptions.ldapDomainComponent, //std::getenv("LDAP_DOMAIN_COMPONENT"),
              UAuthenticator::LDAP::Version::Three,
              UAuthenticator::LDAP::TLSVerifyClient::Allow,
-             "mlReview"); 
-/*
-    auto result = authenticator->authenticate("user", "password", UAuthenticator::Permissions::ReadWrite);           
-    if (result != UAuthenticator::IAuthenticator::ReturnCode::Allowed)
-    {
-        spdlog::critical("Failed to validate user");
-    }
-    return 0;
-*/
+             programOptions.applicationName  //"mlReview"
+             ); 
 
     auto aqmsDatabaseConnection = std::make_shared<MLReview::Database::Connection::PostgreSQL> ();
-    aqmsDatabaseConnection->setUser(std::getenv("MLREVIEW_AQMS_DATABASE_READ_ONLY_USER"));
-    aqmsDatabaseConnection->setPassword(std::getenv("MLREVIEW_AQMS_DATABASE_READ_ONLY_PASSWORD"));
-    aqmsDatabaseConnection->setDatabaseName(std::getenv("MLREVIEW_AQMS_DATABASE_NAME"));
-    aqmsDatabaseConnection->setAddress(std::getenv("MLREVIEW_AQMS_DATABASE_HOST"));
-    aqmsDatabaseConnection->setPort(std::stoi(std::getenv("MLREVIEW_AQMS_DATABASE_PORT")));
-    aqmsDatabaseConnection->setApplication("mlReviewClientBackend");
+    aqmsDatabaseConnection->setUser(programOptions.aqmsReadOnlyUser); //std::getenv("MLREVIEW_AQMS_DATABASE_READ_ONLY_USER"));
+    aqmsDatabaseConnection->setPassword(programOptions.aqmsReadOnlyPassword); //std::getenv("MLREVIEW_AQMS_DATABASE_READ_ONLY_PASSWORD"));
+    aqmsDatabaseConnection->setDatabaseName(programOptions.aqmsDatabaseName); //std::getenv("MLREVIEW_AQMS_DATABASE_NAME"));
+    aqmsDatabaseConnection->setAddress(programOptions.aqmsHost); //std::getenv("MLREVIEW_AQMS_DATABASE_HOST"));
+    aqmsDatabaseConnection->setPort(programOptions.aqmsPort); //std::stoi(std::getenv("MLREVIEW_AQMS_DATABASE_PORT")));
+    aqmsDatabaseConnection->setApplication(programOptions.applicationName); //"mlReviewClientBackend");
 
     auto mongoDatabaseConnection = std::make_shared<MLReview::Database::Connection::MongoDB> ();
-    mongoDatabaseConnection->setUser(std::getenv("MLREVIEW_MONGODB_DATABASE_READ_WRITE_USER"));
-    mongoDatabaseConnection->setPassword(std::getenv("MLREVIEW_MONGODB_DATABASE_READ_WRITE_PASSWORD"));
-    mongoDatabaseConnection->setDatabaseName(std::getenv("MLREVIEW_MONGODB_DATABASE_NAME"));
-    mongoDatabaseConnection->setAddress(std::getenv("MLREVIEW_MONGODB_DATABASE_HOST"));
-    mongoDatabaseConnection->setPort(std::stoi(std::getenv("MLREVIEW_MONGODB_DATABASE_PORT")));
-    mongoDatabaseConnection->setApplication("mlReviewClientBackend");
+    mongoDatabaseConnection->setUser(programOptions.mongodbReadWriteUser); //std::getenv("MLREVIEW_MONGODB_DATABASE_READ_WRITE_USER"));
+    mongoDatabaseConnection->setPassword(programOptions.mongodbReadWritePassword); //std::getenv("MLREVIEW_MONGODB_DATABASE_READ_WRITE_PASSWORD"));
+    mongoDatabaseConnection->setDatabaseName(programOptions.mongodbDatabaseName); //std::getenv("MLREVIEW_MONGODB_DATABASE_NAME"));
+    mongoDatabaseConnection->setAddress(programOptions.mongodbHost); //std::getenv("MLREVIEW_MONGODB_DATABASE_HOST"));
+    mongoDatabaseConnection->setPort(programOptions.mongodbPort); //std::stoi(std::getenv("MLREVIEW_MONGODB_DATABASE_PORT")));
+    mongoDatabaseConnection->setApplication(programOptions.applicationName); //"mlReviewClientBackend");
     mongoDatabaseConnection->connect();
 
     //getWaveform(*mlDatabaseConnection);
 
     auto acceptEventToAWS
         = std::make_unique<MLReview::Service::Actions::AcceptEventToAWS>
-          (mongoDatabaseConnection);
+          (mongoDatabaseConnection,
+           programOptions.mlReviewAPIURL,
+           programOptions.mlReviewAPIKey);
     auto deleteEventFromAWS
         = std::make_unique<MLReview::Service::Actions::DeleteEventFromAWS>
-          (mongoDatabaseConnection);
+          (mongoDatabaseConnection,
+           programOptions.mlReviewAPIURL,
+           programOptions.mlReviewAPIKey);
     auto catalogResource
         = std::make_unique<MLReview::Service::Catalog::Resource>
           (mongoDatabaseConnection);

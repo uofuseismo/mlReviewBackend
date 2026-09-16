@@ -1,6 +1,7 @@
 #ifndef MLREVIEW_SERVICE_ACTIONS_DELETE_EVENT_FROM_AWS_HPP
 #define MLREVIEW_SERVICE_ACTIONS_DELETE_EVENT_FROM_AWS_HPP
 #include <memory>
+#include <string>
 #include <mlReview/service/resource.hpp>
 namespace MLReview::Database::Connection
 {
@@ -15,7 +16,16 @@ namespace MLReview::Service::Actions
 class DeleteEventFromAWS : public MLReview::Service::IResource 
 {
 public:
-    explicit DeleteEventFromAWS(std::shared_ptr<MLReview::Database::Connection::MongoDB> &mongoClient);
+    /// @brief Constructor.
+    /// @param[in] mongoClient   The MongoDB connection.
+    /// @param[in] apiURL        The URL of the machine learning catalog API
+    ///                          hosted at AWS.
+    /// @param[in] apiAccessKey  The access key for that API.
+    /// @throws std::invalid_argument if the connection is NULL, or the URL
+    ///         or access key is empty.
+    DeleteEventFromAWS(std::shared_ptr<MLReview::Database::Connection::MongoDB> &mongoClient,
+                       const std::string &apiURL,
+                       const std::string &apiAccessKey);
 
     /// @brief Destructor
     ~DeleteEventFromAWS() override;

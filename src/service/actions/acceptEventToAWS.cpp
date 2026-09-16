@@ -258,42 +258,28 @@ class AcceptEventToAWS::AcceptEventToAWSImpl
 {
 public:
     AcceptEventToAWSImpl(
-        std::shared_ptr<MLReview::Database::Connection::MongoDB> &mongoConnection) :
+        std::shared_ptr<MLReview::Database::Connection::MongoDB> &mongoConnection,
+        const std::string &apiURL,
+        const std::string &apiAccessKey) :
     mMongoDBConnection(mongoConnection)
     {
         if (mMongoDBConnection == nullptr)
         {
             throw std::invalid_argument("MongoDB connection is NULL");
         }   
-        auto apiURL = std::getenv("MLREVIEW_AWS_API_URL");
-        if (apiURL)
+        if (apiURL.empty())
         {
-            mAPIURL = std::string {apiURL};
+            throw std::invalid_argument("API URL is empty");
         }
-        else
-        {
-            throw std::runtime_error(
-               "Could not read MLREVIEW_AWS_API_URL environment variable");
-        }
-        if (mAPIURL.empty())
-        {
-            throw std::runtime_error("MLREVIEW_AWS_API_URL is empty");
-        }
+        mAPIURL = apiURL;
+        // The request builders append the region to this, so the separator
+        // has to be here rather than in everyone's configuration.
         if (mAPIURL.back() != '/'){mAPIURL.push_back('/');}
-        auto apiKey = std::getenv("MLREVIEW_AWS_API_ACCESS_KEY");
-        if (apiKey)
+        if (apiAccessKey.empty())
         {
-            mAPIAccessKey = std::string {apiKey};
+            throw std::invalid_argument("API access key is empty");
         }
-        else
-        {
-            throw std::runtime_error(
-                "Could not read MLREVIEW_AWS_API_ACCESS_KEY environment variable");
-        }
-        if (mAPIAccessKey.empty())
-        {
-            throw std::runtime_error("MLREVIEW_AWS_API_ACCESS_KEY is empty");
-        }
+        mAPIAccessKey = apiAccessKey;
     }
     [[nodiscard]]
     nlohmann::json sendRequest(const nlohmann::json &data, bool isYellowstone) const
@@ -318,8 +304,12 @@ public:
 
 /// Constructor
 AcceptEventToAWS::AcceptEventToAWS(
-    std::shared_ptr<MLReview::Database::Connection::MongoDB> &mongoConnection) :
-    pImpl(std::make_unique<AcceptEventToAWSImpl> (mongoConnection))
+    std::shared_ptr<MLReview::Database::Connection::MongoDB> &mongoConnection,
+    const std::string &apiURL,
+    const std::string &apiAccessKey) :
+    pImpl(std::make_unique<AcceptEventToAWSImpl> (mongoConnection,
+                                                 apiURL,
+                                                 apiAccessKey))
 {
 }
 
