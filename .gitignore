@@ -3,3 +3,4 @@ setupDebug.sh
 build
 CMakeUserPresets.json
 version.hpp
+run

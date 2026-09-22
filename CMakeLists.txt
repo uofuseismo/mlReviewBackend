@@ -234,10 +234,10 @@ target_link_libraries(mlReviewBackend
                               #${LDAP_LIBRARY} ${LBER_LIBRARY}
                               )
 if (${BUILD_SHARED_LIBS})
-   target_link_libraries(mlReviewBackend PRIVATE mongo::mongocxx_shared mongo::bsoncxx_shared)
+   target_link_libraries(mlReviewBackend PRIVATE mongoc::mongoc mongo::mongocxx_shared mongo::bsoncxx_shared)
    target_link_libraries(mlReviewBackend PRIVATE mseed::mseed)
 else()
-   target_link_libraries(mlReviewBackend PRIVATE mongo::mongocxx_static mongo::bsoncxx_static)
+   target_link_libraries(mlReviewBackend PRIVATE mongoc::mongoc mongo::mongocxx_static mongo::bsoncxx_static)
    target_link_libraries(mlReviewBackend PRIVATE mseed::mseed_static)
 endif()
 target_include_directories(mlReviewBackend
