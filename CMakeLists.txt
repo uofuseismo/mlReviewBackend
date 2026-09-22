@@ -24,6 +24,7 @@ endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON) 
 find_package(SOCI COMPONENTS Core PostgreSQL REQUIRED)
+find_package(mongoc REQUIRED)
 find_package(mongocxx REQUIRED)
 find_package(bsoncxx REQUIRED)
 find_package(spdlog REQUIRED)
