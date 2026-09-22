@@ -133,7 +133,8 @@ RUN cd /home/ubuntu &&\
     cd /home/ubuntu &&\
     rm -rf soci-4.1.4 &&\
     wget https://github.com/mongodb/mongo-cxx-driver/releases/download/r4.1.4/mongo-cxx-driver-r4.1.4.tar.gz &&\
-    tar -xf tar -xf mongo-cxx-driver-r4.1.4.tar.gz &&\
+    tar -xf mongo-cxx-driver-r4.1.4.tar.gz &&\
+    rm mongo-cxx-driver-r4.1.4.tar.gz &&\
     cd mongo-cxx-driver-r4.1.4 &&\
     cmake -B containerBuild -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 -DENABLE_TESTS=OFF -DBUILD_VERSION=4.1.4 -DBUILD_SHARED_LIBS=OFF &&\
     cmake --build containerBuild --parallel &&\
