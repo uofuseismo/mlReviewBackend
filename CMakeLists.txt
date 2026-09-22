@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(MLReviewBackend VERSION 0.1.2 LANGUAGES CXX)
+project(MLReviewBackend VERSION 0.1.3 LANGUAGES CXX)
 enable_testing()
 
 option(ENABLE_SSL "Enable SSL connections" OFF)

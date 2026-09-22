@@ -9,7 +9,7 @@
 #include "mlReview/messages/message.hpp"
 #include "mlReview/messages/error.hpp"
 
-#define RESOURCE_NAME "actions/getStadiaMapsAPIKey"
+#define RESOURCE_NAME "appSettings/getStadiaMapsAPIKey"
 
 using namespace MLReview::Service::AppSettings;
 
@@ -108,10 +108,14 @@ GetStadiaMapsAPIKey::processRequest(const nlohmann::json &request)
 [[nodiscard]] std::string GetStadiaMapsAPIKey::getDocumentation() const noexcept
 {
     return R"""(
-Gets the Stadia maps API key.
+Gets the Stadia Maps API key so the frontend can render map tiles without the
+key being compiled into the Javascript.  To use PUT a JSON request of the form:
 
 {"resource": "appSettings/getStadiaMapsAPIKey"}
 
+The key is returned in the data field of the response, e.g.,
+
+{"success": true, "statusCode": 200, "data": {"key": "stadia_maps_api_key"}}
 )""";
 }
 
