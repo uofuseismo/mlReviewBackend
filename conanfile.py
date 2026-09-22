@@ -2,8 +2,8 @@ from conan import ConanFile
 from conan.tools.build import can_run
 from conan.tools.cmake import cmake_layout, CMake, CMakeDeps, CMakeToolchain
 
-class aqmsDutyReviewBackendConan(ConanFile):
-   name = "aqmsDutyReviewBackend"
+class mlReviewBackendConan(ConanFile):
+   name = "mlReviewBackend"
    #version = "0.0.1"
    license = "MIT"
    description = "Backend for Machine Learning Review frontend."
@@ -72,5 +72,5 @@ class aqmsDutyReviewBackendConan(ConanFile):
        cmake.install()
 
    def package_info(self):
-       self.cpp_info.libs = ["aqmsDutyReviewBackend"]
+       self.cpp_info.libs = ["mlReviewBackend"]
 

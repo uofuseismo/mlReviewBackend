@@ -8,7 +8,7 @@
 #include <boost/property_tree/ini_parser.hpp>
 //#include <soci/soci.h>
 #include <spdlog/spdlog.h>
-#include <mongoc/mongoc.h>
+#include <mongocxx/instance.hpp>
 #include <uAuthenticator/uAuthenticator.hpp>
 #include "mlReview/database/connection/postgresql.hpp"
 #include "mlReview/database/connection/mongodb.hpp"
@@ -240,9 +240,12 @@ Allowed options)""");
 
 int main(int argc, char *argv[])
 { 
+    // This initializes the underlying C driver and must outlive every other
+    // mongocxx object - hence it is the first thing declared in main.
+    mongocxx::instance mongoDriverInstance;
+
     spdlog::info("Launching mlReviewBackend version "
                + MLReview::Version::getVersionWithTag());
-    mongoc_init();
 
     std::filesystem::path iniFile;
     try
@@ -368,6 +371,5 @@ int main(int argc, char *argv[])
                                });
     }
     ioContext.run();
-    mongoc_cleanup();
     return EXIT_SUCCESS;
 }
